@@ -1,7 +1,10 @@
-use core::panic;
-use std::{dbg, env};
+// use core::panic;
+use std::{env, println, process};
+use std::error::Error;
 
 use std::fs;
+
+use rust_cli::search;
 
 struct Config{
     query: String,
@@ -9,16 +12,23 @@ struct Config{
 }
 
 impl Config{
-    fn new_cfg(args: &[String])->Self{
+    fn new_cfg(args: &[String])->Result<Config, &'static str>{
         if args.len() < 3{
-            panic!("Not Enough Arguments");
+            return Err("Not Enough Arguments");
         }
-        Config { query: args[1].clone(), file: args[2].clone() }
+        Ok(Config { query: args[1].clone(), file: args[2].clone() })
     }
 }
 
-fn file_to_string(filename:&str)->String{
-    return fs::read_to_string(filename).expect("NO SUCH FILE {file}.");
+fn run(config:Config)->Result<(), Box<dyn Error>>{
+    let contents =  fs::read_to_string(config.file)?;
+    // println!("With text:\n{contents}");
+
+    for line in search(&config.query, &contents) {
+        println!("{line}");
+    }
+
+    Ok(())
 }
 
 fn main() {
@@ -28,13 +38,18 @@ fn main() {
     // let query: &String = &args[1];
     // let file = &args[2];
 
-    let cfg = Config::new_cfg(&args);
+    let cfg = Config::new_cfg(&args).unwrap_or_else(|err| {
+        println!("Problem parsing arguments: {err}");
+        process::exit(1);
+    });
     
-    println!("Searching for {}", cfg.query);
-    println!("In file {}", cfg.file);
+    // println!("Searching for '{}' in file {}", cfg.query, cfg.file);
 
-    let contents = file_to_string(&cfg.file);
+    // let contents = file_to_string(&cfg.file);
 
+    if let Err(e) = run(cfg){
+        println!("Application Error: {e}");
+        process::exit(1);
+    }
 
-    println!("With text:\n{contents}");
 }
