@@ -4,19 +4,32 @@ use std::error::Error;
 
 use std::fs;
 
-use rust_cli::search;
+use rust_cli::{search, search_case_insensitive};
 
-struct Config{
-    query: String,
-    file: String
+pub struct Config{
+    pub query: String,
+    pub file: String,
+    pub ignore_case: bool,
 }
 
 impl Config{
-    fn new_cfg(args: &[String])->Result<Config, &'static str>{
-        if args.len() < 3{
-            return Err("Not Enough Arguments");
-        }
-        Ok(Config { query: args[1].clone(), file: args[2].clone() })
+    fn new_cfg(mut args: impl Iterator<Item = String>)->Result<Config, &'static str>{
+
+        args.next();
+
+        let query: String = match args.next(){
+            Some(arg)=>arg,
+            None=>return Err("Didn't get a query string")
+        };
+
+        let file: String = match args.next(){
+            Some(arg)=>arg,
+            None=>return Err("Didn't get a file string")
+        };
+
+        let ignore_case = env::var("IGNORE_CASE").is_ok();
+
+        Ok(Config {query: query, file: file, ignore_case:ignore_case})
     }
 }
 
@@ -24,7 +37,14 @@ fn run(config:Config)->Result<(), Box<dyn Error>>{
     let contents =  fs::read_to_string(config.file)?;
     // println!("With text:\n{contents}");
 
-    for line in search(&config.query, &contents) {
+    let result = if config.ignore_case{
+        search_case_insensitive(&config.query, &contents)   
+    } else{
+        search(&config.query, &contents)
+    };
+
+
+    for line in result {
         println!("{line}");
     }
 
@@ -32,14 +52,14 @@ fn run(config:Config)->Result<(), Box<dyn Error>>{
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    // let args: Vec<String> = env::args().collect();
     // dbg!(&args);
 
     // let query: &String = &args[1];
     // let file = &args[2];
 
-    let cfg = Config::new_cfg(&args).unwrap_or_else(|err| {
-        println!("Problem parsing arguments: {err}");
+    let cfg = Config::new_cfg(env::args()).unwrap_or_else(|err| {
+        eprintln!("Problem parsing arguments: {err}");
         process::exit(1);
     });
     
@@ -48,7 +68,7 @@ fn main() {
     // let contents = file_to_string(&cfg.file);
 
     if let Err(e) = run(cfg){
-        println!("Application Error: {e}");
+        eprintln!("Application Error: {e}");
         process::exit(1);
     }
 
